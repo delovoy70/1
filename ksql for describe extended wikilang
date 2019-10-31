@@ -1,0 +1,39 @@
+ksql> describe extended wikilang1;
+
+Name                 : WIKILANG1
+Type                 : STREAM
+Key field            : 
+Key format           : STRING
+Timestamp field      : Not set - using <ROWTIME>
+Value format         : AVRO
+Kafka topic          : WIKILANG1 (partitions: 2, replication: 2)
+
+ Field     | Type                      
+---------------------------------------
+ ROWTIME   | BIGINT           (system) 
+ ROWKEY    | VARCHAR(STRING)  (system) 
+ CREATEDAT | BIGINT                    
+ CHANNEL   | VARCHAR(STRING)           
+ USERNAME  | VARCHAR(STRING)           
+ WIKIPAGE  | VARCHAR(STRING)           
+ DIFFURL   | VARCHAR(STRING)           
+---------------------------------------
+
+Queries that write into this STREAM
+-----------------------------------
+CSAS_WIKILANG1_4 : CREATE STREAM WIKILANG1 WITH (REPLICAS = 2, PARTITIONS = 2, KAFKA_TOPIC = 'WIKILANG1') AS SELECT
+  WIKIPEDIA.CREATEDAT "CREATEDAT"
+, WIKIPEDIA.CHANNEL "CHANNEL"
+, WIKIPEDIA.USERNAME "USERNAME"
+, WIKIPEDIA.WIKIPAGE "WIKIPAGE"
+, WIKIPEDIA.DIFFURL "DIFFURL"
+FROM WIKIPEDIA WIKIPEDIA
+WHERE ((WIKIPEDIA.ISBOT <> true) AND (WIKIPEDIA.CHANNEL <> '#en.wikipedia'));
+
+For query topology and execution plan please run: EXPLAIN <QueryId>
+
+Local runtime statistics
+------------------------
+messages-per-sec:      1.93   total-messages:       215     last-message: 2019-10-17T10:34:09.788Z
+
+(Statistics of the local KSQL server interaction with the Kafka topic WIKILANG1)
