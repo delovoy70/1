@@ -8,21 +8,20 @@
 #                     '$request_time';
 
 
-from typing import List
-from itertools import groupby
 import gzip
 import re
 import os
 import datetime
 import logging
-import sys
+import pandas as pd
+from shutil import copyfile
+from string import Template
 
 config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
     "LOG_DIR": "./log"
 }
-
 
 # lexeme types
 WSP, QUOTED_STRING, DATE, RAW, NO_DATA = range(5) # ENUM
@@ -40,6 +39,16 @@ class LogEntry(object):
     __slots__ = ('remote_addr', 'remote_user', 'http_x_real_ip', 'time_local', 'request', 'status',
               'body_bytes_sent', 'http_referer', 'http_user_agent', 'http_x_forwarded_for',
               'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time')
+
+    def to_dict(self):
+        return {
+            'url': self.request.split()[1],
+            'request_time': self.request_time,
+            'count': self.request.split()[1],
+            'time_sum': float(self.request_time),
+            'time_max': float(self.request_time),
+            'time_med': float(self.request_time),
+        }
 
 
 def lexer(rules):
@@ -115,10 +124,11 @@ def read_log(log_dir):
                 field_name = LogEntry.__slots__[field_idx]
                 setattr(entry, field_name, value)
                 field_idx += 1
-            result.append(entry)
-            if a == 1000:
-                break
-            a += 1
+            if len(entry.request.split()) > 1:
+                result.append(entry)
+            # if a == 100000:
+            #     break
+            # a += 1
 
     return result
 
@@ -126,19 +136,42 @@ def read_log(log_dir):
 def main():
 
     log_data = read_log(config['LOG_DIR'])
-    # log_data.sort(key= lambda x: x.request)
 
-    # with open("123.sql", 'w') as f:
-    #     f.write(",\n".join([x.to_sql() for x in log_data]))
+    pd_log_data = pd.DataFrame.from_records([ld.to_dict() for ld in log_data])
 
-    print(log_data)
-    #
-    # print('==============================================')
-    #
-    # for k, v in groupby(log_data, key=lambda x: x.request):
-    #     print(k, list(v))
+    pd_log_data1 = pd_log_data.groupby('url').agg({'count': 'count'})\
+                            .join(pd_log_data.groupby('url').agg({'time_sum': 'sum'}))\
+                            .join(pd_log_data.groupby('url').agg({'time_max': 'max'}))\
+                            .join(pd_log_data.groupby('url').agg({'time_med': 'median'}))
 
-    # print(sum(float(c.request_time) for c in log_data))
+    total_count = pd_log_data1['count'].sum()
+    total_time = pd_log_data1['time_sum'].sum()
+    count_perc = []
+    time_perc = []
+    time_avg = []
+
+    for index, row in pd_log_data1.iterrows():
+        count_perc.append(round(row['count'] * 100 / total_count, 3))
+        time_perc.append(round(row['time_sum'] * 100 / total_time, 3))
+        time_avg.append(round(row['time_sum'] / row['count'], 3))
+
+    pd_log_data1['count_perc'] = count_perc
+    pd_log_data1['time_perc'] = time_perc
+    pd_log_data1['time_avg'] = time_avg
+
+    pd_log_data1 = pd_log_data1.sort_values(by=['time_sum'], ascending=False).head(100)
+    pd_log_data1 = pd_log_data1.reset_index().to_json(orient='records', index=True)
+
+    copyfile('report.html', config['REPORT_DIR'] + '/report1.html')
+    with open(config['REPORT_DIR'] + '/report1.html', 'r', encoding='utf-8') as f:
+        s = f.read()
+
+    repl_map = {
+        'table_json': pd_log_data1,
+    }
+
+    with open(config['REPORT_DIR'] + '/report1.html', 'w') as f:
+        f.write(Template(s).safe_substitute(repl_map))
 
 
 if __name__ == "__main__":
