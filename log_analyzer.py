@@ -6,8 +6,7 @@
 #                     '$status $body_bytes_sent "$http_referer" '
 #                     '"$http_user_agent" "$http_x_forwarded_for" "$http_X_REQUEST_ID" "$http_X_RB_USER" '
 #                     '$request_time';
-
-
+import argparse
 import gzip
 import re
 import os
@@ -16,6 +15,8 @@ import logging
 import pandas as pd
 from shutil import copyfile
 from string import Template
+import yaml
+import sys
 
 config = {
     "REPORT_SIZE": 1000,
@@ -69,14 +70,12 @@ def lexer(rules):
     return lex
 
 
-def read_log(log_dir):
+def find_newest_log(log_dir):
 
     pattern_file = r'nginx-access-ui.log-+\d{8}\.gzip|'
     files = os.listdir(log_dir)
     max_date = datetime.date(1, 1, 1)
     log_name = ''
-
-    l_lexer = lexer(RULES)
 
     for i in files:
         if re.match(pattern_file, i.lower()) is not None:
@@ -94,9 +93,15 @@ def read_log(log_dir):
     if max_date == datetime.date(1, 1, 1):
         return ''
 
+    return log_dir + '\\' + log_name
+
+
+def read_log(log_name):
+
+    l_lexer = lexer(RULES)
     result = []
-    with gzip.open(log_dir + '\\' + log_name) if log_name[-2:] == 'gz' else open(log_dir + '\\' + log_name) as f:
-        a = 1
+
+    with gzip.open(log_name) if log_name[-3:] == '.gz' else open(log_name) as f:
         for line in f:
             if type(line) == bytes:
                 line = line.decode()
@@ -126,16 +131,31 @@ def read_log(log_dir):
                 field_idx += 1
             if len(entry.request.split()) > 1:
                 result.append(entry)
-            # if a == 100000:
-            #     break
-            # a += 1
 
     return result
 
 
 def main():
 
-    log_data = read_log(config['LOG_DIR'])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', help='optional path to config file .yml', default='')
+    args = parser.parse_args()
+    if args.config:
+        try:
+            with open(args.config, 'r') as f:
+                file_conf = yaml.load(f, Loader=yaml.Loader)
+                log_dir = file_conf['LOG_DIR'] if 'LOG_DIR' in file_conf.keys() else config['LOG_DIR']
+                report_size = file_conf['REPORT_SIZE'] if 'REPORT_SIZE' in file_conf.keys() else config['REPORT_SIZE']
+                report_dir = file_conf['REPORT_DIR'] if 'REPORT_DIR' in file_conf.keys() else config['REPORT_DIR']
+        except:
+            sys.exit()
+    else:
+        log_dir = config['LOG_DIR']
+        report_size = config['REPORT_SIZE']
+        report_dir = config['REPORT_DIR']
+
+    log_name = find_newest_log(log_dir)
+    log_data = read_log(log_name)
 
     pd_log_data = pd.DataFrame.from_records([ld.to_dict() for ld in log_data])
 
@@ -146,23 +166,31 @@ def main():
 
     total_count = pd_log_data1['count'].sum()
     total_time = pd_log_data1['time_sum'].sum()
+
+    pd_log_data1 = pd_log_data1.sort_values(by=['time_sum'], ascending=False).head(report_size)
+
     count_perc = []
     time_perc = []
     time_avg = []
+    time_sum = []
+    time_med = []
 
     for index, row in pd_log_data1.iterrows():
         count_perc.append(round(row['count'] * 100 / total_count, 3))
         time_perc.append(round(row['time_sum'] * 100 / total_time, 3))
         time_avg.append(round(row['time_sum'] / row['count'], 3))
+        time_sum.append(round(row['time_sum'], 3))
+        time_med.append(round(row['time_med'], 3))
 
     pd_log_data1['count_perc'] = count_perc
     pd_log_data1['time_perc'] = time_perc
     pd_log_data1['time_avg'] = time_avg
+    pd_log_data1['time_sum'] = time_sum
+    pd_log_data1['time_med'] = time_med
 
-    pd_log_data1 = pd_log_data1.sort_values(by=['time_sum'], ascending=False).head(100)
     pd_log_data1 = pd_log_data1.reset_index().to_json(orient='records', index=True)
 
-    copyfile('report.html', config['REPORT_DIR'] + '/report1.html')
+    copyfile('report.html', report_dir + '/report1.html')
     with open(config['REPORT_DIR'] + '/report1.html', 'r', encoding='utf-8') as f:
         s = f.read()
 
@@ -170,7 +198,7 @@ def main():
         'table_json': pd_log_data1,
     }
 
-    with open(config['REPORT_DIR'] + '/report1.html', 'w') as f:
+    with open(report_dir + '/report1.html', 'w', encoding='utf-8') as f:
         f.write(Template(s).safe_substitute(repl_map))
 
 
