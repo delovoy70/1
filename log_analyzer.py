@@ -91,9 +91,11 @@ def find_newest_log(log_dir):
                 pass
 
     if max_date == datetime.date(1, 1, 1):
-        return ''
-
-    return log_dir + '\\' + log_name
+        return {}
+    return {
+        'log_name': log_dir + '\\' + log_name,
+        'log_date': max_date,
+    }
 
 
 def read_log(log_name):
@@ -135,34 +137,12 @@ def read_log(log_name):
     return result
 
 
-def main():
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', help='optional path to config file .yml', default='')
-    args = parser.parse_args()
-    if args.config:
-        try:
-            with open(args.config, 'r') as f:
-                file_conf = yaml.load(f, Loader=yaml.Loader)
-                log_dir = file_conf['LOG_DIR'] if 'LOG_DIR' in file_conf.keys() else config['LOG_DIR']
-                report_size = file_conf['REPORT_SIZE'] if 'REPORT_SIZE' in file_conf.keys() else config['REPORT_SIZE']
-                report_dir = file_conf['REPORT_DIR'] if 'REPORT_DIR' in file_conf.keys() else config['REPORT_DIR']
-        except:
-            sys.exit()
-    else:
-        log_dir = config['LOG_DIR']
-        report_size = config['REPORT_SIZE']
-        report_dir = config['REPORT_DIR']
-
-    log_name = find_newest_log(log_dir)
-    log_data = read_log(log_name)
-
+def process_data(log_data, report_size):
     pd_log_data = pd.DataFrame.from_records([ld.to_dict() for ld in log_data])
-
-    pd_log_data1 = pd_log_data.groupby('url').agg({'count': 'count'})\
-                            .join(pd_log_data.groupby('url').agg({'time_sum': 'sum'}))\
-                            .join(pd_log_data.groupby('url').agg({'time_max': 'max'}))\
-                            .join(pd_log_data.groupby('url').agg({'time_med': 'median'}))
+    pd_log_data1 = pd_log_data.groupby('url').agg({'count': 'count'}) \
+        .join(pd_log_data.groupby('url').agg({'time_sum': 'sum'})) \
+        .join(pd_log_data.groupby('url').agg({'time_max': 'max'})) \
+        .join(pd_log_data.groupby('url').agg({'time_med': 'median'}))
 
     total_count = pd_log_data1['count'].sum()
     total_time = pd_log_data1['time_sum'].sum()
@@ -188,17 +168,53 @@ def main():
     pd_log_data1['time_sum'] = time_sum
     pd_log_data1['time_med'] = time_med
 
-    pd_log_data1 = pd_log_data1.reset_index().to_json(orient='records', index=True)
+    return pd_log_data1
 
-    copyfile('report.html', report_dir + '/report1.html')
-    with open(config['REPORT_DIR'] + '/report1.html', 'r', encoding='utf-8') as f:
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', help='optional path to config file .yml', default='')
+    args = parser.parse_args()
+    if args.config:
+        try:
+            with open(args.config, 'r') as f:
+                file_conf = yaml.load(f, Loader=yaml.Loader)
+                log_dir = file_conf['LOG_DIR'] if 'LOG_DIR' in file_conf.keys() else config['LOG_DIR']
+                report_size = file_conf['REPORT_SIZE'] if 'REPORT_SIZE' in file_conf.keys() else config['REPORT_SIZE']
+                report_dir = file_conf['REPORT_DIR'] if 'REPORT_DIR' in file_conf.keys() else config['REPORT_DIR']
+        except:
+            sys.exit()
+    else:
+        log_dir = config['LOG_DIR']
+        report_size = config['REPORT_SIZE']
+        report_dir = config['REPORT_DIR']
+
+    log_params = find_newest_log(log_dir)
+    log_date = log_params['log_date']
+    report_name = 'report-' + log_date.strftime('%Y.%m.%d') + '.html'
+
+    files = os.listdir(report_dir)
+    if report_name in files:
+        print('Report ' + report_name + ' already exist. Abort proceeding logs')
+        sys.exit()
+    log_name = log_params['log_name']
+
+    log_data = read_log(log_name)
+    processed_data = process_data(log_data, report_size)
+    processed_data = processed_data.reset_index().to_json(orient='records', index=True)
+
+    report_path = '/'.join([report_dir, report_name])
+    copyfile('report.html', report_path)
+
+    with open(report_path) as f:
         s = f.read()
 
     repl_map = {
-        'table_json': pd_log_data1,
+        'table_json': processed_data,
     }
 
-    with open(report_dir + '/report1.html', 'w', encoding='utf-8') as f:
+    with open(report_path, 'w', encoding='utf-8') as f:
         f.write(Template(s).safe_substitute(repl_map))
 
 
