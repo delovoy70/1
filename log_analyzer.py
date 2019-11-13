@@ -149,7 +149,7 @@ def process_data(log_data, report_size, errors_level):
 
         dict_data[url].append(float(i.request_time))
 
-    if errors / lines > errors_level:
+    if 100 * errors / lines > errors_level:
         logging.WARNING(f'Too much errors: {errors} errors from {lines} rows')
         return []
 
