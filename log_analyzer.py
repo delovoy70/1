@@ -42,13 +42,13 @@ RULES = [
     ('"([^"]+)"', QUOTED_STRING),
     ('\[([^\]]+)\]', DATE),
     ('([^\s]+)', RAW),
-    ]
+]
 
 
 class LogEntry(object):
     __slots__ = ('remote_addr', 'remote_user', 'http_x_real_ip', 'time_local', 'request', 'status',
-              'body_bytes_sent', 'http_referer', 'http_user_agent', 'http_x_forwarded_for',
-              'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time')
+                 'body_bytes_sent', 'http_referer', 'http_user_agent', 'http_x_forwarded_for',
+                 'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time')
 
 
 def lexer(rules):
@@ -66,11 +66,11 @@ def lexer(rules):
                 i = match.end()  # передвигаем позицию анализатора до индекса, соответствующего концу совпадения
                 yield (match, token_type)  # возвращаем найденный токен
                 break  # начинаем анализировать остаток строки с новым значением сдвига i
+
     return lex
 
 
 def find_newest_log(log_dir):
-
     pattern_file = r'^nginx-access-ui\.log-(\d{8})(\.gz|\.log)'
     files = os.listdir(log_dir)
     max_date = datetime.date(1, 1, 1)
@@ -98,7 +98,6 @@ def find_newest_log(log_dir):
 
 
 def read_log(log_name):
-
     l_lexer = lexer(RULES)
     result = []
 
@@ -135,7 +134,6 @@ def read_log(log_name):
 
 
 def process_data(log_data, report_size, errors_level):
-
     dict_data: Dict[str, list[float]] = collections.defaultdict(list)
     lines, errors = 0, 0
 
@@ -184,7 +182,6 @@ def process_data(log_data, report_size, errors_level):
 
 
 def main():
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='optional path to config file .yml', default='')
     args = parser.parse_args()
