@@ -129,6 +129,7 @@ def read_log(log_name):
                 field_name = LogEntry.__slots__[field_idx]
                 setattr(entry, field_name, value)
                 field_idx += 1
+            result.append(entry)
 
     return result
 
@@ -147,7 +148,7 @@ def process_data(log_data, report_size, errors_level):
 
         dict_data[url].append(float(i.request_time))
 
-    if not errors_level == None:
+    if not errors_level is None:
         if 100 * errors / lines > errors_level:
             logging.WARNING(f'Too much errors: {errors} errors from {lines} rows')
             return []
