@@ -97,17 +97,24 @@ def find_newest_log(log_dir):
     }
 
 
-def read_log(log_name):
+def read_log(log_name, errors_level):
     l_lexer = lexer(RULES)
-    result = []
 
     with gzip.open(log_name) if log_name[-3:] == '.gz' else open(log_name) as f:
+
+        lines, errors = 0, 0
+        dict_data: Dict[str, list[float]] = collections.defaultdict(list)
+
         for line in f:
+
+            lines += 1
+
             if type(line) == bytes:
                 line = line.decode()
             try:
                 tokens = l_lexer(line)
             except Exception:
+                errors += 1
                 logging.exception("Error in line '%s'", line)
                 continue  # пропускаем битые строки
             entry = LogEntry()
@@ -129,29 +136,24 @@ def read_log(log_name):
                 field_name = LogEntry.__slots__[field_idx]
                 setattr(entry, field_name, value)
                 field_idx += 1
-            result.append(entry)
 
-    return result
+            try:
+                url = entry.request.split()[1]
+            except:
+                errors += 1
+                continue
 
-
-def process_data(log_data, report_size, errors_level):
-    dict_data: Dict[str, list[float]] = collections.defaultdict(list)
-    lines, errors = 0, 0
-
-    for i in log_data:
-        lines += 1
-        try:
-            url = i.request.split()[1]
-        except:
-            errors += 1
-            continue
-
-        dict_data[url].append(float(i.request_time))
+            dict_data[url].append(float(entry.request_time))
 
     if not errors_level is None:
         if 100 * errors / lines > errors_level:
             logging.WARNING(f'Too much errors: {errors} errors from {lines} rows')
             return []
+
+    return dict_data
+
+
+def process_data(dict_data, report_size):
 
     new_dict = {}
     arr = []
@@ -220,8 +222,8 @@ def main():
 
     log_name = log_params['log_name']
 
-    log_data = read_log(log_name)
-    processed_data = process_data(log_data, report_size, errors_level)
+    log_data = read_log(log_name, errors_level)
+    processed_data = process_data(log_data, report_size)
 
     if not processed_data:
         logging.info('Nothing to put into the report')
