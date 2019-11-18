@@ -197,6 +197,7 @@ def main():
                 report_size = file_conf['REPORT_SIZE'] if 'REPORT_SIZE' in file_conf.keys() else config['REPORT_SIZE']
                 report_dir = file_conf['REPORT_DIR'] if 'REPORT_DIR' in file_conf.keys() else config['REPORT_DIR']
                 errors_level = file_conf['ERRORS_LEVEL'] if 'ERRORS_LEVEL' in file_conf.keys() else None
+                log_file = file_conf['LOG_FILE_NAME'] if 'LOG_FILE_NAME' in file_conf.keys() else None
         except:
             logging.WARNING('An error occurred while parsing the config file')
             sys.exit()
@@ -205,6 +206,14 @@ def main():
         report_size = config['REPORT_SIZE']
         report_dir = config['REPORT_DIR']
         errors_level = None
+        log_file = None
+
+    if not log_file is None:
+        logger = logging.getLogger()
+        logger.handlers.clear()
+        logger.addHandler(logging.FileHandler(log_file))
+
+    logging.info('starting new parsing job')
 
     log_params = find_newest_log(log_dir)
 
