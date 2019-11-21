@@ -1,3 +1,3 @@
-/log analizer/log/nginx-access-ui.log-20170630.gz
-/log analizer/report-2017.06.30.html
-/log analizer/reports/*
+/log/nginx-access-ui.log-20170630.gz
+/report-2017.06.30.html
+/reports/*

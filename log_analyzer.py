@@ -75,24 +75,23 @@ def find_newest_log(log_dir):
     files = os.listdir(log_dir)
     max_date = datetime.date(1, 1, 1)
     log_name = ''
+    EMPTY_DATE = datetime.date(1, 1, 1)
 
     for i in files:
         if re.match(pattern_file, i.lower()):
             try:
-                year = int(i[20:24])
-                month = int(i[24:26])
-                day = int(i[26:28])
-                if datetime.date(year, month, day) > max_date:
-                    max_date = datetime.date(year, month, day)
+                log_date = datetime.datetime.strptime(i[20:28], '%Y%m%d').date()
+                if log_date > max_date:
+                    max_date = log_date
                     log_name = i
             except ValueError:
                 """это не наш формат имени лога"""
                 pass
 
-    if max_date == datetime.date(1, 1, 1):
+    if max_date == EMPTY_DATE:
         return {}
     return {
-        'log_name': log_dir + '\\' + log_name,
+        'log_name': os.path.join(log_dir, log_name),
         'log_date': max_date,
     }
 
