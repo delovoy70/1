@@ -77,7 +77,7 @@ def find_newest_log(log_dir):
     log_name = ''
 
     for i in files:
-        if re.match(pattern_file, i.lower()) is not None:
+        if re.match(pattern_file, i.lower()):
             try:
                 year = int(i[20:24])
                 month = int(i[24:26])
