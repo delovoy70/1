@@ -23,7 +23,9 @@ from typing import Dict
 config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": "./reports",
-    "LOG_DIR": "./log"
+    "LOG_DIR": "./log",
+    "ERRORS_LEVEL": None,
+    "LOG_FILE_NAME": "",
 }
 
 logging.basicConfig(
@@ -184,37 +186,34 @@ def process_data(dict_data, report_size):
     return data_for_report[:report_size]
 
 
+def update_config(config_file):
+    with open(config_file, 'r') as f:
+        try:
+            file_conf = json.load(f)
+            config.update(file_conf)
+        except:
+            logging.WARNING(f'JSON in {config_file} is not a valid json dict')
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', help='optional path to config file .yml', default='')
+    parser.add_argument('--config', help='optional path to config file .json', default='')
     args = parser.parse_args()
     if args.config:
-        try:
-            with open(args.config, 'r') as f:
-                file_conf = json.load(f)
-                log_dir = file_conf['LOG_DIR'] if 'LOG_DIR' in file_conf.keys() else config['LOG_DIR']
-                report_size = file_conf['REPORT_SIZE'] if 'REPORT_SIZE' in file_conf.keys() else config['REPORT_SIZE']
-                report_dir = file_conf['REPORT_DIR'] if 'REPORT_DIR' in file_conf.keys() else config['REPORT_DIR']
-                errors_level = file_conf['ERRORS_LEVEL'] if 'ERRORS_LEVEL' in file_conf.keys() else None
-                log_file = file_conf['LOG_FILE_NAME'] if 'LOG_FILE_NAME' in file_conf.keys() else None
-        except:
-            logging.WARNING('An error occurred while parsing the config file')
+        if os.path.exists(args.config):
+            update_config(args.config)
+        else:
+            logging.WARNING(f'file {args.config} does not exist')
             sys.exit()
-    else:
-        log_dir = config['LOG_DIR']
-        report_size = config['REPORT_SIZE']
-        report_dir = config['REPORT_DIR']
-        errors_level = None
-        log_file = None
 
-    if not log_file is None:
+    if config['LOG_FILE_NAME']:
         logger = logging.getLogger()
         logger.handlers.clear()
-        logger.addHandler(logging.FileHandler(log_file))
+        logger.addHandler(logging.FileHandler(config['LOG_FILE_NAME']))
 
     logging.info('starting new parsing job')
 
-    log_params = find_newest_log(log_dir)
+    log_params = find_newest_log(config['LOG_DIR'])
 
     if not log_params:
         logging.info('There are no logs to proceed')
@@ -223,15 +222,15 @@ def main():
     log_date = log_params['log_date']
     report_name = 'report-' + log_date.strftime('%Y.%m.%d') + '.html'
 
-    files = os.listdir(report_dir)
+    files = os.listdir(config['REPORT_DIR'])
     if report_name in files:
         logging.info('Report ' + report_name + ' already exist. Abort proceeding logs')
         sys.exit()
 
     log_name = log_params['log_name']
 
-    log_data = read_log(log_name, errors_level)
-    processed_data = process_data(log_data, report_size)
+    log_data = read_log(log_name, config['ERRORS_LEVEL'])
+    processed_data = process_data(log_data, config['REPORT_SIZE'])
 
     if not processed_data:
         logging.info('Nothing to put into the report')
@@ -239,7 +238,7 @@ def main():
 
     processed_data = json.dumps(processed_data)
 
-    report_path = '/'.join([report_dir, report_name])
+    report_path = '/'.join([config['REPORT_DIR'], report_name])
     copyfile('report.html', report_path)
 
     with open(report_path) as f:
