@@ -195,6 +195,21 @@ def update_config(config_file):
             logging.WARNING(f'JSON in {config_file} is not a valid json dict')
 
 
+def create_report_file(processed_data, report_path):
+    processed_data = json.dumps(processed_data)
+    copyfile('report.html', report_path)
+
+    with open(report_path) as f:
+        s = f.read()
+
+    repl_map = {
+        'table_json': processed_data,
+    }
+
+    with open(report_path, 'w', encoding='utf-8') as f:
+        f.write(Template(s).safe_substitute(repl_map))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='optional path to config file .json', default='')
@@ -236,20 +251,10 @@ def main():
         logging.info('Nothing to put into the report')
         sys.exit()
 
-    processed_data = json.dumps(processed_data)
+    report_path = os.path.join(config['REPORT_DIR'], report_name)
+    create_report_file(processed_data, report_path)
 
-    report_path = '/'.join([config['REPORT_DIR'], report_name])
-    copyfile('report.html', report_path)
-
-    with open(report_path) as f:
-        s = f.read()
-
-    repl_map = {
-        'table_json': processed_data,
-    }
-
-    with open(report_path, 'w', encoding='utf-8') as f:
-        f.write(Template(s).safe_substitute(repl_map))
+    logging.info('job successfully completed')
 
 
 if __name__ == "__main__":
