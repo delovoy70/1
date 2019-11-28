@@ -98,53 +98,58 @@ def find_newest_log(log_dir):
     }
 
 
+def lines_from_file(file_name):
+
+    with gzip.open(file_name) if file_name[-3:] == '.gz' else open(file_name, encoding='utf-8') as f:
+        for line in f:
+            yield line
+
 def read_log(log_name, errors_level):
+
     l_lexer = lexer(RULES)
 
-    with gzip.open(log_name) if log_name[-3:] == '.gz' else open(log_name) as f:
+    lines, errors = 0, 0
+    dict_data: Dict[str, list[float]] = collections.defaultdict(list)
 
-        lines, errors = 0, 0
-        dict_data: Dict[str, list[float]] = collections.defaultdict(list)
+    for line in lines_from_file(log_name):
 
-        for line in f:
+        lines += 1
 
-            lines += 1
+        try:
+            tokens = l_lexer(line)
+        except Exception:
+            errors += 1
+            logging.exception("Error in line '%s'", line)
+            continue  # пропускаем битые строки
 
-            if type(line) == bytes:
-                line = line.decode()
-            try:
-                tokens = l_lexer(line)
-            except Exception:
-                errors += 1
-                logging.exception("Error in line '%s'", line)
-                continue  # пропускаем битые строки
-            entry = LogEntry()
-            field_idx = 0
-            for re_match, token_type in tokens:
-                if token_type == WSP:
-                    continue  # пробелы игнорируем
-                elif token_type == NO_DATA:
-                    value = None  # NO_DATA заменяем на None
-                elif token_type == RAW:
-                    value = re_match.group(1)  # group(i) возвращает i-ую заключённую в круглые скобки группу
-                elif token_type == QUOTED_STRING:
-                    value = re_match.group(1)  # снимаем экранирование с заэкранированных кавычек
-                elif token_type == DATE:
-                    value = datetime.datetime.strptime(re_match.group(1)[:-6], "%d/%b/%Y:%H:%M:%S")  # парсим дату
-                else:
-                    raise SyntaxError("Unknown token", token_type, re_match)
+        entry = LogEntry()
+        field_idx = 0
 
-                field_name = LogEntry.__slots__[field_idx]
-                setattr(entry, field_name, value)
-                field_idx += 1
+        for re_match, token_type in tokens:
+            if token_type == WSP:
+                continue  # пробелы игнорируем
+            elif token_type == NO_DATA:
+                value = None  # NO_DATA заменяем на None
+            elif token_type == RAW:
+                value = re_match.group(1)  # group(i) возвращает i-ую заключённую в круглые скобки группу
+            elif token_type == QUOTED_STRING:
+                value = re_match.group(1)  # снимаем экранирование с заэкранированных кавычек
+            elif token_type == DATE:
+                value = datetime.datetime.strptime(re_match.group(1)[:-6], "%d/%b/%Y:%H:%M:%S")  # парсим дату
+            else:
+                raise SyntaxError("Unknown token", token_type, re_match)
 
-            try:
-                url = entry.request.split()[1]
-            except:
-                errors += 1
-                continue
+            field_name = LogEntry.__slots__[field_idx]
+            setattr(entry, field_name, value)
+            field_idx += 1
 
-            dict_data[url].append(float(entry.request_time))
+        try:
+            url = entry.request.split()[1]
+        except:
+            errors += 1
+            continue
+
+        dict_data[url].append(float(entry.request_time))
 
     if not errors_level is None:
         if 100 * errors / lines > errors_level:
