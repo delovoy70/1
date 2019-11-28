@@ -47,10 +47,15 @@ RULES = [
 ]
 
 
-class LogEntry(object):
-    __slots__ = ('remote_addr', 'remote_user', 'http_x_real_ip', 'time_local', 'request', 'status',
+LOG_STRUCTURE = ['remote_addr', 'remote_user', 'http_x_real_ip', 'time_local', 'request', 'status',
                  'body_bytes_sent', 'http_referer', 'http_user_agent', 'http_x_forwarded_for',
-                 'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time')
+                 'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time']
+
+
+# class LogEntry(object):
+#     __slots__ = ('remote_addr', 'remote_user', 'http_x_real_ip', 'time_local', 'request', 'status',
+#                  'body_bytes_sent', 'http_referer', 'http_user_agent', 'http_x_forwarded_for',
+#                  'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time')
 
 
 def lexer(rules):
@@ -100,9 +105,10 @@ def find_newest_log(log_dir):
 
 def lines_from_file(file_name):
 
-    with gzip.open(file_name) if file_name[-3:] == '.gz' else open(file_name, encoding='utf-8') as f:
+    with gzip.open(file_name, mode='rt') if file_name[-3:] == '.gz' else open(file_name, encoding='utf-8') as f:
         for line in f:
             yield line
+
 
 def read_log(log_name, errors_level):
 
@@ -122,7 +128,7 @@ def read_log(log_name, errors_level):
             logging.exception("Error in line '%s'", line)
             continue  # пропускаем битые строки
 
-        entry = LogEntry()
+        dict_for_data = {}
         field_idx = 0
 
         for re_match, token_type in tokens:
@@ -139,17 +145,17 @@ def read_log(log_name, errors_level):
             else:
                 raise SyntaxError("Unknown token", token_type, re_match)
 
-            field_name = LogEntry.__slots__[field_idx]
-            setattr(entry, field_name, value)
+            field_name = LOG_STRUCTURE[field_idx]
+            dict_for_data[field_name] = value
             field_idx += 1
 
         try:
-            url = entry.request.split()[1]
+            url = dict_for_data['request'].split()[1]
         except:
             errors += 1
             continue
 
-        dict_data[url].append(float(entry.request_time))
+        dict_data[url].append(float(dict_for_data['request_time']))
 
     if not errors_level is None:
         if 100 * errors / lines > errors_level:
@@ -216,9 +222,11 @@ def create_report_file(processed_data, report_path):
 
 
 def main():
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', help='optional path to config file .json', default='')
     args = parser.parse_args()
+
     if args.config:
         if os.path.exists(args.config):
             update_config(args.config)
