@@ -52,12 +52,6 @@ LOG_STRUCTURE = ['remote_addr', 'remote_user', 'http_x_real_ip', 'time_local', '
                  'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time']
 
 
-# class LogEntry(object):
-#     __slots__ = ('remote_addr', 'remote_user', 'http_x_real_ip', 'time_local', 'request', 'status',
-#                  'body_bytes_sent', 'http_referer', 'http_user_agent', 'http_x_forwarded_for',
-#                  'http_X_REQUEST_ID', 'http_X_RB_USER', 'request_time')
-
-
 def lexer(rules):
     # предварительно компилируем регулярные выражения для ускорения работы
     prepared = [(re.compile(regexp), token_type) for regexp, token_type in rules]
